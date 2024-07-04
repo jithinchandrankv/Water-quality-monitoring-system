@@ -24,3 +24,15 @@ searched amount componenets and availability
 
 ![ggggg](https://github.com/jithinchandrankv/Water-quality-monitoring-system/assets/117764288/18b70d20-44a4-4a22-b548-c3477337679e)
 
+04/07/2024
+
+Plan layout
+
+![LAYOUT](https://github.com/jithinchandrankv/Water-quality-monitoring-system/assets/117764288/f7c4eb1f-9f4e-423f-9801-7575a3b075d8)
+
+
+
+## PROPOSAL 1 (Side view)
+
+![image](https://github.com/jithinchandrankv/Water-quality-monitoring-system/assets/117764288/a1c245e9-807c-407c-8e3c-d0273593c2a8)
+
