@@ -34,7 +34,7 @@ Plan layout
 
 ## PROPOSAL 1 (Side view)
 
-![image](https://github.com/jithinchandrankv/Water-quality-monitoring-system/assets/117764288/a1c245e9-807c-407c-8e3c-d0273593c2a8
+![image](https://github.com/jithinchandrankv/Water-quality-monitoring-system/assets/117764288/a1c245e9-807c-407c-8e3c-d0273593c2a8)
 
 8/07/2024
 
