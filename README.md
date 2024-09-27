@@ -1,10 +1,10 @@
-Real time waste water quality monitoring system with automated valve control using IoT
+#Real time waste water quality monitoring system with automated valve control using IoT
 
 
-Description
+
 This system utilizes an ESP32 microcontroller to track key water quality metrics, including pH, TDS, EC, and temperature. By responding to sensor input, it controls three valves — managing water flow in different directions depending on the detected quality. The system is accessible remotely via a mobile app, offering real-time monitoring and control features.
 
-Advantages
+#Advantages
 Tracks key water parameters: pH, TDS, EC, and temperature.
 Manages valve operations: input, sewage, and chemical discharge.
 Includes a mode for sensor calibration.
