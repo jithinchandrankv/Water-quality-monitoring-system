@@ -1,0 +1,245 @@
+#define BLYNK_TEMPLATE_ID "TMPL6--cYXtS-"  
+#define BLYNK_TEMPLATE_NAME "test"         
+#define BLYNK_PRINT Serial
+
+#include <WiFi.h>
+#include <WiFiClient.h>
+#include <BlynkSimpleEsp32.h>
+#include <OneWire.h>
+#include <DallasTemperature.h>
+
+// Network credentials
+char blynkAuth[] = "b4L-iHEfYpA0IPMvEXNcvtT4NQw9Gyct"; 
+char wifiSSID[] = "Happy star12";                     
+char wifiPass[] = "villa12@3036";                     
+
+// Pin setup for the valves
+int valveSewage = 14;     
+int valveChemical = 15;     
+int valveInput = 12;       
+int valveCalibration = 16;  
+
+// Sensor pins
+#define TDS_SENSOR_PIN 33
+#define PH_SENSOR_PIN 35
+#define EC_SENSOR_PIN 32
+#define TEMP_SENSOR_PIN 5
+
+// Sensor values
+float phLevel;
+unsigned int tdsLevel;
+unsigned int ecLevel;
+float waterTemperature;
+
+// Calibration parameters
+float phCalibration = 7.0;
+float tdsCalibration = 500;
+float ecCalibration = 500;
+bool calibrationActive = false;
+unsigned long calibrationStart = 0;
+bool bufferComplete = false;
+
+OneWire oneWire(TEMP_SENSOR_PIN);
+DallasTemperature tempSensor(&oneWire);
+
+BlynkTimer actionTimer;
+
+WidgetTerminal terminal(V10); // Blynk terminal widget
+
+void setup() {
+    Serial.begin(115200);  
+    Blynk.begin(blynkAuth, wifiSSID, wifiPass);
+
+    // Set pin modes for valve control
+    pinMode(valveSewage, OUTPUT);
+    pinMode(valveChemical, OUTPUT);
+    pinMode(valveInput, OUTPUT);    
+    pinMode(valveCalibration, OUTPUT);
+
+    // Initial valve states
+    digitalWrite(valveSewage, LOW);  
+    digitalWrite(valveChemical, LOW);  
+    digitalWrite(valveInput, LOW);  
+    digitalWrite(valveCalibration, LOW);
+
+    tempSensor.begin();  
+
+    // Set timer intervals for regular tasks
+    actionTimer.setInterval(2000L, checkWaterQuality);  
+    actionTimer.setInterval(1000L, sendSensorData);  
+}
+
+void loop() {
+    Blynk.run();  
+    actionTimer.run();  
+
+    // Handle calibration buffer timing
+    if (calibrationActive && !bufferComplete) {
+        unsigned long currentMillis = millis();
+        if (currentMillis - calibrationStart >= 60000) {  
+            bufferComplete = true;  
+            terminal.println("Buffer filled, starting calibration.");
+            terminal.flush();
+            runCalibration();  
+        }
+    }
+}
+
+void readPH() {
+    int sensorVal = analogRead(PH_SENSOR_PIN);
+    float voltage = sensorVal * (3.3 / 4096.0);
+    phLevel = -5.70 * voltage + phCalibration;
+}
+
+void readTDS() {
+    int sensorVal = analogRead(TDS_SENSOR_PIN);
+    float voltage = sensorVal * (3.3 / 4096.0);  
+    tdsLevel = voltage * tdsCalibration;  
+}
+
+void readEC() {
+    int sensorVal = analogRead(EC_SENSOR_PIN);
+    float voltage = sensorVal * (3.3 / 4096.0);  
+    ecLevel = voltage * ecCalibration;     
+}
+
+void readTemperature() {
+    tempSensor.requestTemperatures();  
+    waterTemperature = tempSensor.getTempCByIndex(0);  
+}
+
+void checkWaterQuality() {
+    if (!calibrationActive) {  
+        readPH();
+        readTDS();
+        readEC();
+        readTemperature();
+
+        if (phLevel < 6.0 || phLevel > 9.0 || tdsLevel > 1000 || ecLevel > 3500) {
+            // Handle chemical water
+            digitalWrite(valveChemical, HIGH);  
+            digitalWrite(valveSewage, LOW);     
+            digitalWrite(valveInput, LOW);      
+            Blynk.virtualWrite(V5, 255);        
+            Blynk.virtualWrite(V4, 0);          
+            Blynk.virtualWrite(V6, 0);          
+
+            terminal.println("Chemical water detected: Chemical valve ON.");
+        } else {
+            // Handle normal water
+            digitalWrite(valveChemical, LOW);   
+            digitalWrite(valveSewage, HIGH);    
+            digitalWrite(valveInput, HIGH);     
+            Blynk.virtualWrite(V5, 0);          
+            Blynk.virtualWrite(V4, 255);        
+            Blynk.virtualWrite(V6, 255);        
+
+            terminal.println("Normal water detected: Sewage valve ON.");
+        }
+
+        terminal.flush();  
+    }
+}
+
+void sendSensorData() {
+    if (!calibrationActive) {
+        Blynk.virtualWrite(V1, phLevel);   
+        Blynk.virtualWrite(V2, tdsLevel);  
+        Blynk.virtualWrite(V3, ecLevel);   
+        Blynk.virtualWrite(V4, waterTemperature); 
+    }
+}
+
+BLYNK_WRITE(V8) {
+    int buttonState = param.asInt();
+    if (buttonState == 1) {
+        calibrationActive = true;
+        bufferComplete = false;  
+        calibrationStart = millis();  
+        digitalWrite(valveCalibration, HIGH);  
+        closeValves();  
+
+        terminal.println("Calibration started, waiting for buffer fill.");
+        terminal.flush();
+    } else {
+        calibrationActive = false;  
+        digitalWrite(valveCalibration, LOW);  
+        terminal.println("Calibration stopped, values updated.");
+        terminal.flush();
+    }
+}
+
+void runCalibration() {
+    phCalibration += (7.0 - phLevel) * 0.1;  
+    tdsCalibration += (500 - tdsLevel) * 0.1;  
+    ecCalibration += (500 - ecLevel) * 0.1;    
+
+    phLevel = phCalibration;
+    tdsLevel = tdsCalibration;
+    ecLevel = ecCalibration;
+
+    Blynk.virtualWrite(V1, phLevel);  
+    Blynk.virtualWrite(V2, tdsLevel);  
+    Blynk.virtualWrite(V3, ecLevel);   
+
+    terminal.println("Calibration complete.");
+    terminal.println("Updated pH: " + String(phCalibration));
+    terminal.println("Updated TDS: " + String(tdsCalibration));
+    terminal.println("Updated EC: " + String(ecCalibration));
+    
+    Blynk.virtualWrite(V8, 0);  
+    digitalWrite(valveChemical, LOW);  
+    digitalWrite(valveSewage, HIGH);   
+    Blynk.virtualWrite(V4, 255);       
+    Blynk.virtualWrite(V5, 0);         
+
+    terminal.println("Sewage valve opened after calibration.");
+    
+    digitalWrite(valveInput, HIGH);  
+    Blynk.virtualWrite(V6, 255);     
+    terminal.println("Input valve opened after calibration.");
+    terminal.flush();
+}
+
+void closeValves() {
+    digitalWrite(valveSewage, LOW);    
+    digitalWrite(valveChemical, LOW);  
+    digitalWrite(valveInput, LOW);     
+    Blynk.virtualWrite(V4, 0);         
+    Blynk.virtualWrite(V5, 0);         
+    Blynk.virtualWrite(V6, 0);         
+}
+
+BLYNK_WRITE(V7) {
+    if (!calibrationActive) {  
+        int buttonState = param.asInt();
+        if (buttonState == 1) {
+            digitalWrite(valveSewage, HIGH);  
+            digitalWrite(valveChemical, LOW);  
+            digitalWrite(valveInput, HIGH);   
+            Blynk.virtualWrite(V4, 255);      
+            Blynk.virtualWrite(V5, 0);        
+            Blynk.virtualWrite(V6, 255);      
+            terminal.println("Manual: Sewage valve ON.");
+        } else {
+            digitalWrite(valveSewage, LOW);  
+            terminal.println("Manual: Sewage valve OFF.");
+            Blynk.virtualWrite(V4, 0);  
+        }
+        terminal.flush();
+    }
+}
+
+BLYNK_WRITE(V9) {
+    int buttonState = param.asInt();
+    if (buttonState == 1) {
+        digitalWrite(valveChemical, HIGH);  
+        Blynk.virtualWrite(V5, 255);        
+        terminal.println("Manual: Chemical valve ON.");
+    } else {
+        digitalWrite(valveChemical, LOW);  
+        Blynk.virtualWrite(V5, 0);         
+        terminal.println("Manual: Chemical valve OFF.");
+    }
+    terminal.flush();
+}
