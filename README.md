@@ -1,4 +1,4 @@
-#Real time waste water quality monitoring system with automated valve control using IoT
+Real time waste water quality monitoring system with automated valve control using IoT
 
 
 
